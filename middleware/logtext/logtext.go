@@ -3,24 +3,42 @@ package logtext
 // A Logrus hook that adds filename/line number/stack trace to our log outputs
 
 import (
-	"github.com/Sirupsen/logrus"
 	"runtime"
+
+	"github.com/Sirupsen/logrus"
 )
 
+// TargetMaskType is to specialize whether tracing works.
+type TargetMaskType int
+
+// DebugOnly makes LogText trace only Debug
+const DebugOnly = 1 << logrus.DebugLevel
+
+func NewLogtextTargetMask(levels ...logrus.Level) TargetMaskType {
+	var mask TargetMaskType
+
+	for i := range levels {
+		mask |= 1 << levels[i]
+	}
+
+	return mask
+}
+
+// Logtext is a formatter
 // Log depth is how many levels to ascend to find where the actual log call occurred
 // while debugOnly sets whether or not stack traces should be printed outside of
 // debug prints
-type Logtext struct{
-	Formatter logrus.Formatter
-	LogDepth int
-	DebugOnly bool
+type Logtext struct {
+	Formatter  logrus.Formatter
+	LogDepth   int
+	TargetMask TargetMaskType
 }
 
-func NewLogtext(formatter logrus.Formatter, debugOnly bool) *Logtext {
+func NewLogtext(formatter logrus.Formatter, targetMask TargetMaskType) *Logtext {
 	return &Logtext{
-		LogDepth: 4,
-		Formatter: formatter,
-		DebugOnly: debugOnly,
+		LogDepth:   4,
+		Formatter:  formatter,
+		TargetMask: targetMask,
 	}
 }
 
@@ -32,7 +50,7 @@ func (hook *Logtext) Format(entry *logrus.Entry) ([]byte, error) {
 		entry.Data["file"] = file
 	}
 
-	if !hook.DebugOnly || entry.Level == logrus.DebugLevel {
+	if (hook.TargetMask & (1 << entry.Level)) != 0 {
 		stack := getTrace()
 		entry.Data["stack"] = stack
 	}
